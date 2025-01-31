@@ -361,6 +361,16 @@ const llm = new ChatOpenAI({ openAIApiKey });
 
 const standaloneQuestionTemplate =
   "Given a question, convert it to a standalone question. question: {question} standalone question:";
+
+// The {question} is a placeholder that will be filled in later
+// It's like having a form where {question} is a blank space to be filled
+
+// PromptTemplate.fromTemplate():
+
+// This creates a special object that knows how to handle this template
+// It looks for variables in curly braces {}
+// It provides methods to properly format the template with actual values
+
 const standaloneQuestionPrompt = PromptTemplate.fromTemplate(
   standaloneQuestionTemplate
 );
@@ -371,6 +381,22 @@ question: {question}
 answer: `;
 const answerPrompt = PromptTemplate.fromTemplate(answerTemplate);
 
+// Think of it like a water pipeline, where each .pipe() processes the data and passes it to the next step:
+
+// standaloneQuestionPrompt:
+// This is like the source of the water - it's your initial prompt template.
+
+// .pipe(llm):
+
+// This is the first processing station. The Language Model (OpenAI in this case):
+
+// Takes the formatted prompt
+// Processes it through the AI model
+// Returns a response
+// But! The response at this point is in a raw LLM format
+
+// .pipe(new StringOutputParser()):
+
 const standaloneQuestionChain = standaloneQuestionPrompt
   .pipe(llm)
   .pipe(new StringOutputParser());
@@ -380,6 +406,7 @@ const retrieverChain = RunnableSequence.from([
   retriever,
   combineDocuments,
 ]);
+
 const answerChain = answerPrompt.pipe(llm).pipe(new StringOutputParser());
 
 const chain = RunnableSequence.from([
