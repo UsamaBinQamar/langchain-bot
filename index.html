@@ -1,35 +1,157 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Scrimba Chatbot</title>
-    <link rel="stylesheet" href="index.css" />
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Poppins&family=Roboto&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Roboto&display=swap"
       rel="stylesheet"
     />
+    <style>
+      /* Optional: Custom styles to apply the Google fonts */
+      body {
+        font-family: "Poppins", "Roboto", sans-serif;
+      }
+    </style>
   </head>
-
-  <body>
-    <main>
-      <section class="chatbot-container">
-        <div class="chatbot-header">
-          <img src="images/logo-scrimba.svg" class="logo" />
-          <p class="sub-heading">Knowledge Bank</p>
-        </div>
+  <body
+    class="bg-gradient-to-br from-blue-500 to-purple-700 flex items-center justify-center min-h-screen text-gray-800"
+  >
+    <main class="w-full max-w-md mx-auto">
+      <section
+        class="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col"
+      >
+        <header
+          class="bg-gradient-to-br from-purple-600 to-blue-600 text-white text-center py-6 px-4"
+        >
+          <img
+            src="images/logo-scrimba.svg"
+            alt="Scrimba Logo"
+            class="w-12 h-auto mx-auto mb-2"
+          />
+          <p class="text-xl font-semibold">Knowledge Bank</p>
+        </header>
         <div
-          class="chatbot-conversation-container"
           id="chatbot-conversation-container"
-        ></div>
-        <form id="form" class="chatbot-input-container">
-          <input name="user-input" type="text" id="user-input" required />
-          <button id="submit-btn" class="submit-btn">
-            <img src="images/send.svg" class="send-btn-icon" />
+          class="flex-1 p-4 space-y-4 overflow-y-auto bg-gray-50"
+        >
+          <!-- Chat bubbles will be appended here -->
+        </div>
+        <form id="form" class="flex border-t border-gray-200">
+          <input
+            id="user-input"
+            type="text"
+            name="user-input"
+            placeholder="Type your question..."
+            required
+            class="flex-1 p-4 focus:outline-none"
+          />
+          <button
+            type="submit"
+            id="submit-btn"
+            class="bg-blue-600 hover:bg-blue-700 text-white p-4"
+          >
+            <img src="images/send.svg" alt="Send" class="w-6 h-6" />
           </button>
         </form>
       </section>
     </main>
-    <script src="index.js" type="module"></script>
+
+    <script type="module">
+      import { ChatOpenAI } from "langchain/chat_models/openai";
+      import { PromptTemplate } from "langchain/prompts";
+      import { StringOutputParser } from "langchain/schema/output_parser";
+      import { retriever } from "/utils/retriever";
+      import { combineDocuments } from "/utils/combineDocuments";
+      import {
+        RunnablePassthrough,
+        RunnableSequence,
+      } from "langchain/schema/runnable";
+
+      // Initialize OpenAI API key and LLM
+      const openAIApiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      const llm = new ChatOpenAI({ openAIApiKey });
+
+      // Create prompt templates
+      const standaloneQuestionTemplate =
+        "Given a question, convert it to a standalone question. question: {question} standalone question:";
+
+      const standaloneQuestionPrompt = PromptTemplate.fromTemplate(
+        standaloneQuestionTemplate
+      );
+
+      const answerTemplate = `You are a helpful and enthusiastic support bot who can answer a given question about Scrimba based on the context provided. Try to find the answer in the context. If you really don't know the answer, say "I'm sorry, I don't know the answer to that." And direct the questioner to email help@scrimba.com. Don't try to make up an answer. Always speak as if you were chatting to a friend.
+context: {context}
+question: {question}
+answer: `;
+
+      const answerPrompt = PromptTemplate.fromTemplate(answerTemplate);
+
+      // Build the chain components
+      const standaloneQuestionChain = standaloneQuestionPrompt
+        .pipe(llm)
+        .pipe(new StringOutputParser());
+
+      const retrieverChain = RunnableSequence.from([
+        (prevResult) => prevResult.standalone_question,
+        retriever,
+        combineDocuments,
+      ]);
+
+      const answerChain = answerPrompt.pipe(llm).pipe(new StringOutputParser());
+
+      const chain = RunnableSequence.from([
+        {
+          standalone_question: standaloneQuestionChain,
+          original_input: new RunnablePassthrough(),
+        },
+        {
+          context: retrieverChain,
+          question: ({ original_input }) => original_input.question,
+        },
+        answerChain,
+      ]);
+
+      // Function to process user conversation
+      async function progressConversation() {
+        const userInput = document.getElementById("user-input");
+        const chatbotConversation = document.getElementById(
+          "chatbot-conversation-container"
+        );
+        const question = userInput.value;
+        userInput.value = "";
+
+        // Add the human message to the conversation (styled with Tailwind)
+        const newHumanSpeechBubble = document.createElement("div");
+        newHumanSpeechBubble.className =
+          "self-end bg-blue-100 p-3 rounded-xl max-w-xs break-words";
+        newHumanSpeechBubble.textContent = question;
+        chatbotConversation.appendChild(newHumanSpeechBubble);
+        chatbotConversation.scrollTop = chatbotConversation.scrollHeight;
+
+        // Invoke the chain using the user's question
+        const response = await chain.invoke({ question });
+
+        // Add the AI response to the conversation (styled with Tailwind)
+        const newAiSpeechBubble = document.createElement("div");
+        newAiSpeechBubble.className =
+          "self-start bg-yellow-100 p-3 rounded-xl max-w-xs break-words";
+        newAiSpeechBubble.textContent = response;
+        chatbotConversation.appendChild(newAiSpeechBubble);
+        chatbotConversation.scrollTop = chatbotConversation.scrollHeight;
+      }
+
+      // Attach the event listener to the form submission
+      document.getElementById("form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        await progressConversation();
+      });
+    </script>
   </body>
 </html>

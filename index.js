@@ -340,7 +340,7 @@
 // });
 // console.log("🚀 ~ response:", response);
 
-// ==================================================================================================
+// ==================================================================================================import { ChatOpenAI } from "langchain/chat_models/openai";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import { PromptTemplate } from "langchain/prompts";
 import { StringOutputParser } from "langchain/schema/output_parser";
@@ -351,25 +351,13 @@ import {
   RunnableSequence,
 } from "langchain/schema/runnable";
 
-document.addEventListener("submit", (e) => {
-  e.preventDefault();
-  progressConversation();
-});
-
+// Initialize OpenAI API key and LLM
 const openAIApiKey = import.meta.env.VITE_OPENAI_API_KEY;
 const llm = new ChatOpenAI({ openAIApiKey });
 
+// Create prompt templates
 const standaloneQuestionTemplate =
   "Given a question, convert it to a standalone question. question: {question} standalone question:";
-
-// The {question} is a placeholder that will be filled in later
-// It's like having a form where {question} is a blank space to be filled
-
-// PromptTemplate.fromTemplate():
-
-// This creates a special object that knows how to handle this template
-// It looks for variables in curly braces {}
-// It provides methods to properly format the template with actual values
 
 const standaloneQuestionPrompt = PromptTemplate.fromTemplate(
   standaloneQuestionTemplate
@@ -379,24 +367,10 @@ const answerTemplate = `You are a helpful and enthusiastic support bot who can a
 context: {context}
 question: {question}
 answer: `;
+
 const answerPrompt = PromptTemplate.fromTemplate(answerTemplate);
 
-// Think of it like a water pipeline, where each .pipe() processes the data and passes it to the next step:
-
-// standaloneQuestionPrompt:
-// This is like the source of the water - it's your initial prompt template.
-
-// .pipe(llm):
-
-// This is the first processing station. The Language Model (OpenAI in this case):
-
-// Takes the formatted prompt
-// Processes it through the AI model
-// Returns a response
-// But! The response at this point is in a raw LLM format
-
-// .pipe(new StringOutputParser()):
-
+// Build the chain components
 const standaloneQuestionChain = standaloneQuestionPrompt
   .pipe(llm)
   .pipe(new StringOutputParser());
@@ -408,7 +382,6 @@ const retrieverChain = RunnableSequence.from([
 ]);
 
 const answerChain = answerPrompt.pipe(llm).pipe(new StringOutputParser());
-console.log("🚀 ~ answerChain:", answerChain);
 
 const chain = RunnableSequence.from([
   {
@@ -422,12 +395,7 @@ const chain = RunnableSequence.from([
   answerChain,
 ]);
 
-const response = await chain.invoke({
-  question: "what is  scrimba",
-});
-
-console.log(response);
-
+// Function to process user conversation
 async function progressConversation() {
   const userInput = document.getElementById("user-input");
   const chatbotConversation = document.getElementById(
@@ -436,17 +404,26 @@ async function progressConversation() {
   const question = userInput.value;
   userInput.value = "";
 
-  // add human message
+  // Add the human message to the conversation
   const newHumanSpeechBubble = document.createElement("div");
   newHumanSpeechBubble.classList.add("speech", "speech-human");
-  chatbotConversation.appendChild(newHumanSpeechBubble);
   newHumanSpeechBubble.textContent = question;
+  chatbotConversation.appendChild(newHumanSpeechBubble);
   chatbotConversation.scrollTop = chatbotConversation.scrollHeight;
 
-  // add AI message
+  // Invoke the chain using the user's question
+  const response = await chain.invoke({ question });
+
+  // Add the AI response to the conversation
   const newAiSpeechBubble = document.createElement("div");
   newAiSpeechBubble.classList.add("speech", "speech-ai");
+  newAiSpeechBubble.textContent = response;
   chatbotConversation.appendChild(newAiSpeechBubble);
-  newAiSpeechBubble.textContent = result;
   chatbotConversation.scrollTop = chatbotConversation.scrollHeight;
 }
+
+// Attach the event listener to the form submission
+document.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  await progressConversation();
+});
