@@ -408,6 +408,7 @@ const retrieverChain = RunnableSequence.from([
 ]);
 
 const answerChain = answerPrompt.pipe(llm).pipe(new StringOutputParser());
+console.log("🚀 ~ answerChain:", answerChain);
 
 const chain = RunnableSequence.from([
   {
@@ -422,7 +423,7 @@ const chain = RunnableSequence.from([
 ]);
 
 const response = await chain.invoke({
-  question: "how many instructors are there on scrimba",
+  question: "what is  scrimba",
 });
 
 console.log(response);
